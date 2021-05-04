@@ -3,7 +3,7 @@
 namespace Model;
 use App;
 use CI_Emerald_Model;
-use Comment_model;
+use Model\Comment_model;
 use Exception;
 use stdClass;
 
@@ -139,6 +139,17 @@ class Post_model extends CI_Emerald_Model {
     public function get_likes()
     {
         return $this->likes;
+    }
+
+    /**
+     * @param int $likes
+     *
+     * @return bool
+     */
+    public function set_likes(int $likes)
+    {
+        $this->likes = $likes;
+        return $this->save('likes', $likes);
     }
 
     /**
@@ -289,7 +300,7 @@ class Post_model extends CI_Emerald_Model {
         $o->user = User_model::preparation($data->get_user(), 'main_page');
         $o->coments = Comment_model::preparation($data->get_comments(), 'full_info');
 
-        $o->likes = rand(0, 25);
+        $o->likes = $data->get_likes();
 
 
         $o->time_created = $data->get_time_created();
@@ -299,6 +310,57 @@ class Post_model extends CI_Emerald_Model {
 
 
         return $o;
+    }
+
+    /**
+     * @param Post_model $post_data
+     * @param User_model $user
+     * @return int
+     * @throws Exception
+     */
+    public static function add_like_to_post(Post_model $post_data , User_model $user)
+    {
+
+        try {
+            App::get_ci()->s->set_transaction_repeatable_read()->execute();
+            App::get_ci()->s->start_trans()->execute();
+
+            //Update post likes count
+            App::get_ci()->s
+                ->from('post')
+                ->where(['id' => $post_data->get_id()])
+                ->update(['likes' => ($post_data->get_likes() + 1)])
+                ->execute()
+            ;
+            $affected_rows_post = App::get_ci()->s->get_affected_rows();
+
+            //Update user links count
+            App::get_ci()->s
+                ->from('user')
+                ->where(['id' => $user->get_id()])
+                ->update([
+                    'likes' => ($user->get_likes() - 1)
+                ])
+                ->execute()
+            ;
+            $affected_rows_user = App::get_ci()->s->get_affected_rows();
+
+        } catch (Exception $e) {
+            //something went wrong ,rollback transaction
+            App::get_ci()->s->rollback()->execute();
+            return false;
+        }
+
+        if($affected_rows_post < 1 || $affected_rows_user < 1)
+        {
+            App::get_ci()->s->rollback()->execute();
+            return false;
+        }
+
+        App::get_ci()->s->commit()->execute();
+        $post_data->reload();
+        return $post_data->get_likes();
+
     }
 
 

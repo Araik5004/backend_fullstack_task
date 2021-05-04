@@ -29,6 +29,8 @@ class User_model extends CI_Emerald_Model {
     protected $avatarfull;
     /** @var int */
     protected $rights;
+    /** @var int */
+    protected $likes;
     /** @var float */
     protected $wallet_balance;
     /** @var float */
@@ -136,6 +138,24 @@ class User_model extends CI_Emerald_Model {
     {
         $this->rights = $rights;
         return $this->save('rights', $rights);
+    }
+
+    /**
+     * @return int
+     */
+    public function get_likes(): int
+    {
+        return $this->likes;
+    }
+    /**
+     * @param int $likes
+     *
+     * @return bool
+     */
+    public function set_likes(int $likes)
+    {
+        $this->likes = $likes;
+        return $this->save('likes', $likes);
     }
 
     /**
@@ -382,4 +402,121 @@ class User_model extends CI_Emerald_Model {
         return $o;
     }
 
+    /**
+     * @param string $email
+     * @return self
+     * @throws Exception
+     */
+    public static function get_user_by_email(string $email)
+    {
+        $data = App::get_ci()->s
+            ->from(self::CLASS_TABLE)
+            ->where('email' , $email)
+            ->one()
+        ;
+        if(empty($data))
+        {
+            return false;
+        }
+        $user = new self($data['id']);
+        return $user;
+
+    }
+    /**
+     * @param User_model $user
+     * @param float $sum
+     * @return bool
+     * @throws Exception
+     */
+    public static function add_balance(User_model $user , float $sum)
+    {
+
+        try {
+            //Update user balance
+            App::get_ci()->s
+                ->from('user')
+                ->where(['id' => $user->get_id()])
+                ->update(['wallet_balance' => ($user->get_wallet_balance() + $sum)
+                    , 'wallet_total_refilled' => ($user->get_wallet_total_refilled() + $sum)
+                ])
+                ->execute();
+
+            $affected_rows_user = App::get_ci()->s->get_affected_rows();
+        }catch (Exception $e)
+        {
+            return false;
+        }
+
+        if($affected_rows_user < 1)
+        {
+            return false;
+        }
+
+        $user->reload();
+        return true;
+
+    }
+
+    /**
+     * @param User_model $user
+     * @param Boosterpack_model $booster_pack
+     * @return bool
+     * @throws Exception
+     */
+    public static function user_buy_booster_pack(User_model $user , Boosterpack_model $booster_pack)
+    {
+
+        $price_booster_pack = $booster_pack->get_price();
+        $bank_booster_pack = $booster_pack->get_bank();
+
+        $possible_like_count = $price_booster_pack + $bank_booster_pack;
+        $user_rand_likes = rand( 1 , $possible_like_count);
+        $new_bank = ($bank_booster_pack + $price_booster_pack) - $user_rand_likes;
+
+
+        try {
+            App::get_ci()->s->set_transaction_repeatable_read()->execute();
+            App::get_ci()->s->start_trans()->execute();
+
+            //Update booster pack bank
+            App::get_ci()->s
+                ->from('boosterpack')
+                ->where(['id' => $booster_pack->get_id()])
+                ->update(['bank' => $new_bank])
+                ->execute()
+            ;
+            $affected_rows_booster_pack = App::get_ci()->s->get_affected_rows();
+
+            //Update user balance , and like count
+            App::get_ci()->s
+                ->from('user')
+                ->where(['id' => $user->get_id()])
+                ->update([
+                    'wallet_total_withdrawn' => ($user->get_wallet_total_withdrawn() + $price_booster_pack)
+                    ,'wallet_balance' => ($user->get_wallet_balance() - $price_booster_pack)
+                    ,'likes' => ($user->get_likes() + $user_rand_likes)
+                ])
+                ->execute()
+            ;
+            $affected_rows_user = App::get_ci()->s->get_affected_rows();
+
+        } catch (Exception $e) {
+            //something went wrong ,rollback transaction
+            App::get_ci()->s->rollback()->execute();
+            return false;
+        }
+
+        if($affected_rows_booster_pack < 1 || $affected_rows_user < 1)
+        {
+            //rollback transaction
+            App::get_ci()->s->rollback()->execute();
+            return false;
+        }
+
+        //success commit transaction
+        App::get_ci()->s->commit()->execute();
+        $user->reload();
+        return $user_rand_likes;
+
+    }
 }

@@ -1,5 +1,8 @@
 <?php
-
+namespace Model;
+use CI_Emerald_Model;
+use App;
+use stdClass;
 /**
  * Created by PhpStorm.
  * User: mr.incognito
@@ -14,9 +17,15 @@ class Comment_model extends CI_Emerald_Model
     /** @var int */
     protected $user_id;
     /** @var int */
-    protected $assing_id;
+    protected $assign_id;
     /** @var string */
     protected $text;
+    /** @var string */
+    protected $parent_id ;
+    /** @var string */
+    protected $type  ;
+    /** @var string */
+    protected $public   ;
 
     /** @var string */
     protected $time_created;
@@ -51,20 +60,20 @@ class Comment_model extends CI_Emerald_Model
     /**
      * @return int
      */
-    public function get_assing_id(): int
+    public function get_assign_id(): int
     {
-        return $this->assing_id;
+        return $this->assign_id;
     }
 
     /**
-     * @param int $assing_id
+     * @param int $assign_id
      *
      * @return bool
      */
-    public function set_assing_id(int $assing_id)
+    public function set_assign_id(int $assign_id)
     {
-        $this->assing_id = $assing_id;
-        return $this->save('assing_id', $assing_id);
+        $this->assign_id = $assign_id;
+        return $this->save('assign_id', $assign_id);
     }
 
 
@@ -87,6 +96,60 @@ class Comment_model extends CI_Emerald_Model
         return $this->save('text', $text);
     }
 
+    /**
+     * @return int
+     */
+    public function get_parent_id(): int
+    {
+        return $this->parent_id;
+    }
+    /**
+     * @param int $parent_id
+     *
+     * @return bool
+     */
+    public function set_parent_id(int $parent_id)
+    {
+        $this->parent_id = $parent_id;
+        return $this->save('parent_id', $parent_id);
+    }
+
+    /**
+     * @return int
+     */
+    public function get_public(): int
+    {
+        return $this->public;
+    }
+    /**
+     * @param int $public
+     *
+     * @return bool
+     */
+    public function set_public(int $public)
+    {
+        $this->public = $public;
+        return $this->save('public', $public);
+    }
+
+    /**
+     * @return string
+     */
+    public function get_type(): string
+    {
+        return $this->type;
+    }
+
+    /**
+     * @param string $type
+     *
+     * @return bool
+     */
+    public function set_type(string $type)
+    {
+        $this->type = $type;
+        return $this->save('type', $type);
+    }
 
     /**
      * @return string
@@ -195,7 +258,10 @@ class Comment_model extends CI_Emerald_Model
     public static function get_all_by_assign_id(int $assting_id)
     {
 
-        $data = App::get_ci()->s->from(self::CLASS_TABLE)->where(['assign_id' => $assting_id])->orderBy('time_created','ASC')->many();
+        $data = App::get_ci()->s->from(self::CLASS_TABLE)
+            ->where(['assign_id' => $assting_id])
+            ->where(['public ' => 1])
+            ->orderBy('time_created','ASC')->many();
         $ret = [];
         foreach ($data as $i)
         {
@@ -235,6 +301,8 @@ class Comment_model extends CI_Emerald_Model
 
             $o->id = $d->get_id();
             $o->text = $d->get_text();
+            $o->assign_id = $d->get_assign_id();
+            $o->parent_id = $d->get_parent_id();
 
             $o->user = User_model::preparation($d->get_user(),'main_page');
 

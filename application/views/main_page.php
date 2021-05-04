@@ -186,8 +186,11 @@ use Model\User_model;
               <form class="form-inline">
                 <div class="form-group">
                   <input type="text" class="form-control" id="addComment" v-model="commentText">
+                    <div class="invalid-feedback" v-if="invalidCommentText">
+                        Please write a comment.
+                    </div>
                 </div>
-                <button type="submit" class="btn btn-primary">Add comment</button>
+                <button type="submit" class="btn btn-primary" @click.prevent="comment">Add comment</button>
               </form>
             </div>
           </div>
